@@ -26,6 +26,11 @@
 curl -sSO http://download.allinssl.com/install_allinssl.sh && bash install_allinssl.sh allinssl
 ```
 
+### Docker安装
+```bash 
+docker run -d --name allinssl -p 7979:8888 -v /www/allinssl/data:/www/allinssl/data allinssl/allinssl:latest
+```
+
 ### 编译安装
   - 编译安装时需要注意可执行文件的名称和运行目录，在`allinssl.sh`中需要修改为对应的名称和路径否则可能导致脚本不可用
   - 推荐安装路径为`/www/allinssl/`，可执行文件名为`allinssl`，建议将`allinssl.sh`软链到`/usr/bin/`目录下
