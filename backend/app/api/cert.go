@@ -41,7 +41,7 @@ func UploadCert(c *gin.Context) {
 	}
 	form.Key = strings.TrimSpace(form.Key)
 	form.Cert = strings.TrimSpace(form.Cert)
-
+	
 	if form.Key == "" {
 		public.FailMsg(c, "名称不能为空")
 		return
@@ -50,12 +50,12 @@ func UploadCert(c *gin.Context) {
 		public.FailMsg(c, "类型不能为空")
 		return
 	}
-	err = cert.UploadCert(form.Key, form.Cert)
+	sha256, err := cert.UploadCert(form.Key, form.Cert)
 	if err != nil {
 		public.FailMsg(c, err.Error())
 		return
 	}
-	public.SuccessMsg(c, "添加成功")
+	public.SuccessData(c, sha256, 0)
 	return
 }
 
@@ -83,7 +83,7 @@ func DelCert(c *gin.Context) {
 
 func DownloadCert(c *gin.Context) {
 	ID := c.Query("id")
-
+	
 	if ID == "" {
 		public.FailMsg(c, "ID不能为空")
 		return
@@ -93,11 +93,11 @@ func DownloadCert(c *gin.Context) {
 		public.FailMsg(c, err.Error())
 		return
 	}
-
+	
 	// 构建 zip 包（内存中）
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
-
+	
 	for filename, content := range certData {
 		if filename == "cert" || filename == "key" {
 			writer, err := zipWriter.Create(filename + ".pem")
@@ -118,10 +118,10 @@ func DownloadCert(c *gin.Context) {
 		return
 	}
 	// 设置响应头
-
+	
 	zipName := strings.ReplaceAll(certData["domains"], ".", "_")
 	zipName = strings.ReplaceAll(zipName, ",", "-")
-
+	
 	c.Header("Content-Type", "application/zip")
 	c.Header("Content-Disposition", "attachment; filename="+zipName+".zip")
 	c.Data(200, "application/zip", buf.Bytes())

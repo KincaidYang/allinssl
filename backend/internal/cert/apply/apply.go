@@ -39,18 +39,18 @@ func GetDNSProvider(providerName string, creds map[string]string) (challenge.Pro
 		config.SecretID = creds["secret_id"]
 		config.SecretKey = creds["secret_key"]
 		return tencentcloud.NewDNSProviderConfig(config)
-
+	
 	// case "cloudflare":
 	// 	config := cloudflare.NewDefaultConfig()
 	// 	config.AuthToken = creds["CLOUDFLARE_API_TOKEN"]
 	// 	return cloudflare.NewDNSProviderConfig(config)
-
+	
 	case "aliyun":
 		config := alidns.NewDefaultConfig()
 		config.APIKey = creds["access_key"]
 		config.SecretKey = creds["access_secret"]
 		return alidns.NewDNSProviderConfig(config)
-
+	
 	default:
 		return nil, fmt.Errorf("不支持的 DNS Provider: %s", providerName)
 	}
@@ -62,7 +62,7 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 		return nil, err
 	}
 	defer db.Close()
-
+	
 	email, ok := cfg["email"].(string)
 	if !ok {
 		return nil, fmt.Errorf("参数错误：email")
@@ -84,7 +84,11 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 	default:
 		return nil, fmt.Errorf("参数错误：provider_id")
 	}
-
+	domainArr := strings.Split(domains, ",")
+	for i := range domainArr {
+		domainArr[i] = strings.TrimSpace(domainArr[i])
+	}
+	
 	// 获取上次申请的证书
 	runId, ok := cfg["_runId"].(string)
 	if !ok {
@@ -114,11 +118,17 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 				var maxDays float64
 				var maxItem map[string]any
 				for i := range certs {
+					if !public.ContainsAllIgnoreBRepeats(strings.Split(certs[i]["domains"].(string), ","), domainArr) {
+						continue
+					}
 					endTimeStr, ok := certs[i]["end_time"].(string)
 					if !ok {
 						continue
 					}
-					endTime, _ := time.Parse(layout, endTimeStr)
+					endTime, err := time.Parse(layout, endTimeStr)
+					if err != nil {
+						continue
+					}
 					diff := endTime.Sub(time.Now()).Hours() / 24
 					if diff > maxDays {
 						maxDays = diff
@@ -131,10 +141,10 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 				if !ok || cfgEnd <= 0 {
 					cfgEnd = 30
 				}
-
+				
 				if int(maxDays) > cfgEnd {
 					// 证书未过期，直接返回
-					logger.Debug(fmt.Sprintf("上次证书申请成功，剩余天数：%d 大于%d天，已跳过申请复用此证书", int(maxDays), cfgEnd))
+					logger.Debug(fmt.Sprintf("上次证书申请成功,域名：%s，剩余天数：%d 大于%d天，已跳过申请复用此证书", certObj["domains"], int(maxDays), cfgEnd))
 					return map[string]any{
 						"cert":       certObj["cert"],
 						"key":        certObj["key"],
@@ -145,7 +155,7 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 		}
 	}
 	logger.Debug("正在申请证书，域名: " + domains)
-
+	
 	user, err := LoadUserFromDB(db, email)
 	if err != nil {
 		logger.Debug("acme账号不存在，注册新账号")
@@ -154,10 +164,10 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 			Email: email,
 			key:   privateKey,
 		}
-
+		
 		config := lego.NewConfig(user)
 		config.Certificate.KeyType = certcrypto.EC384
-
+		
 		client, err := lego.NewClient(config)
 		if err != nil {
 			return nil, err
@@ -168,14 +178,14 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 			return nil, err
 		}
 		user.Registration = reg
-
+		
 		err = SaveUserToDB(db, user)
 		if err != nil {
 			return nil, err
 		}
 		logger.Debug("账号注册并保存成功")
 	}
-
+	
 	// 初始化 ACME 客户端
 	client, err := lego.NewClient(lego.NewConfig(user))
 	if err != nil {
@@ -196,13 +206,13 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	
 	// DNS 验证
 	provider, err := GetDNSProvider(providerStr, providerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("创建 DNS provider 失败: %v", err)
 	}
-
+	
 	err = client.Challenge.SetDNS01Provider(provider,
 		dns01.WrapPreCheck(func(domain, fqdn, value string, check dns01.PreCheckFunc) (bool, error) {
 			// 跳过预检查
@@ -215,29 +225,29 @@ func Apply(cfg map[string]any, logger *public.Logger) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	
 	// fmt.Println(strings.Split(domains, ","))
 	request := certificate.ObtainRequest{
-		Domains: strings.Split(domains, ","),
+		Domains: domainArr,
 		Bundle:  true,
 	}
 	certObj, err := client.Certificate.Obtain(request)
 	if err != nil {
 		return nil, err
 	}
-
+	
 	certStr := string(certObj.Certificate)
 	keyStr := string(certObj.PrivateKey)
 	issuerCertStr := string(certObj.IssuerCertificate)
-
+	
 	// 保存证书和私钥
 	data := map[string]any{
 		"cert":       certStr,
 		"key":        keyStr,
 		"issuerCert": issuerCertStr,
 	}
-
-	err = cert.SaveCert("workflow", keyStr, certStr, issuerCertStr, runId)
+	
+	_, err = cert.SaveCert("workflow", keyStr, certStr, issuerCertStr, runId)
 	if err != nil {
 		return nil, err
 	}

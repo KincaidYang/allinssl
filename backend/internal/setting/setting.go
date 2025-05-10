@@ -95,34 +95,37 @@ func Save(setting *Setting) error {
 		reload = true
 	}
 	s.TableName = "settings"
-	if setting.Timeout != 0 {
+	if setting.Timeout != 0 && setting.Timeout != public.TimeOut {
 		s.Where("key = 'timeout'", []interface{}{}).Update(map[string]interface{}{"value": setting.Timeout})
 		public.TimeOut = setting.Timeout
-	}
-	if setting.Secure != "" {
-		s.Where("key = 'secure'", []interface{}{}).Update(map[string]interface{}{"value": setting.Secure})
-		public.TimeOut = setting.Timeout
-	}
-	if setting.Https == "1" {
-		if setting.Key == "" || setting.Cert == "" {
-			return fmt.Errorf("key or cert is empty")
-		}
-		// fmt.Println(setting.Key, setting.Cert)
-		err := public.ValidateSSLCertificate(setting.Cert, setting.Key)
-		if err != nil {
-			return err
-		}
-		s.Where("key = 'https'", []interface{}{}).Update(map[string]interface{}{"value": setting.Https})
-		// dir := filepath.Dir("data/https")
-		if err := os.MkdirAll("data/https", os.ModePerm); err != nil {
-			panic("创建目录失败: " + err.Error())
-		}
-		err = os.WriteFile("data/https/key.pem", []byte(setting.Key), 0644)
-		// fmt.Println(err)
-		os.WriteFile("data/https/cert.pem", []byte(setting.Cert), 0644)
 		restart = true
 	}
-
+	if setting.Secure != "" && setting.Secure != public.Secure {
+		s.Where("key = 'secure'", []interface{}{}).Update(map[string]interface{}{"value": setting.Secure})
+		public.TimeOut = setting.Timeout
+		restart = true
+	}
+	if setting.Https != "" && setting.Https != public.GetSettingIgnoreError("https") {
+		if setting.Https == "1" {
+			if setting.Key == "" || setting.Cert == "" {
+				return fmt.Errorf("key or cert is empty")
+			}
+			// fmt.Println(setting.Key, setting.Cert)
+			err := public.ValidateSSLCertificate(setting.Cert, setting.Key)
+			if err != nil {
+				return err
+			}
+			// dir := filepath.Dir("data/https")
+			if err := os.MkdirAll("data/https", os.ModePerm); err != nil {
+				panic("创建目录失败: " + err.Error())
+			}
+			err = os.WriteFile("data/https/key.pem", []byte(setting.Key), 0644)
+			// fmt.Println(err)
+			os.WriteFile("data/https/cert.pem", []byte(setting.Cert), 0644)
+		}
+		s.Where("key = 'https'", []interface{}{}).Update(map[string]interface{}{"value": setting.Https})
+		restart = true
+	}
 	if restart {
 		Restart()
 		return nil

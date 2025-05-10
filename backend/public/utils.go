@@ -179,3 +179,24 @@ func GetPublicIP() (string, error) {
 	
 	return string(body), nil
 }
+
+func ContainsAllIgnoreBRepeats(a, b []string) bool {
+	// 构建 A 的集合
+	setA := make(map[string]struct{})
+	for _, item := range a {
+		setA[item] = struct{}{}
+	}
+	
+	// 遍历 B 的唯一元素，判断是否在 A 中
+	seen := make(map[string]struct{})
+	for _, item := range b {
+		if _, checked := seen[item]; checked {
+			continue
+		}
+		seen[item] = struct{}{}
+		if _, ok := setA[item]; !ok {
+			return false
+		}
+	}
+	return true
+}

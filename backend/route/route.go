@@ -8,7 +8,7 @@ import (
 
 func Register(r *gin.Engine) {
 	v1 := r.Group("/v1")
-
+	
 	login := v1.Group("/login")
 	{
 		login.POST("/sign", api.Sign)
@@ -70,11 +70,15 @@ func Register(r *gin.Engine) {
 	{
 		overview.POST("/get_overviews", api.GetOverview)
 	}
-
+	
 	// 1. 提供静态文件服务
 	r.StaticFS("/static", http.Dir("./frontend/static"))             // 静态资源路径
 	r.StaticFS("/auto-deploy/static", http.Dir("./frontend/static")) // 静态资源路径
-
+	// 返回 favicon.ico
+	r.GET("/favicon.ico", func(c *gin.Context) {
+		c.File("./frontend/favicon.ico")
+	})
+	
 	// 3. 前端路由托管：匹配所有其他路由并返回 index.html
 	r.NoRoute(func(c *gin.Context) {
 		c.File("./frontend/index.html")

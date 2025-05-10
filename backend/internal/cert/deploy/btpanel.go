@@ -41,14 +41,17 @@ func RequestBt(data *url.Values, method, providerID, requestUrl string) (map[str
 	}
 	timestamp := time.Now().Unix()
 	token := generateSignature(fmt.Sprintf("%d", timestamp), providerConfig["api_key"])
-	if providerConfig["url"][len(providerConfig["url"])-1:] != "/" {
-		providerConfig["url"] += "/"
-	}
 
 	data.Set("request_time", fmt.Sprintf("%d", timestamp))
 	data.Set("request_token", token)
 
-	req, err := http.NewRequest(method, providerConfig["url"]+requestUrl, strings.NewReader(data.Encode()))
+	parsedURL, err := url.Parse(providerConfig["url"])
+	if err != nil {
+		return nil, err
+	}
+	baseURL := fmt.Sprintf("%s://%s/", parsedURL.Scheme, parsedURL.Host)
+
+	req, err := http.NewRequest(method, baseURL+requestUrl, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +115,7 @@ func DeployBt(cfg map[string]any) error {
 	data.Set("cert_type", "1")
 	data.Set("privateKey", keyPem)
 	data.Set("certPem", certPem)
-	_, err := RequestBt(&data, "POST", providerID, "/config?action=SetPanelSSL")
+	_, err := RequestBt(&data, "POST", providerID, "config?action=SetPanelSSL")
 	if err != nil {
 		return fmt.Errorf("证书部署失败: %v", err)
 	}
@@ -150,7 +153,7 @@ func DeployBtSite(cfg map[string]any) error {
 	data.Set("key", keyPem)
 	data.Set("csr", certPem)
 	data.Set("siteName", siteName)
-	_, err := RequestBt(&data, "POST", providerID, "/site?action=SetSSL")
+	_, err := RequestBt(&data, "POST", providerID, "site?action=SetSSL")
 	if err != nil {
 		return fmt.Errorf("证书部署失败: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"ALLinSSL/backend/public"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 // var executors map[string]func(map[string]any) (any, error)
@@ -33,7 +34,7 @@ func Executors(exec string, params map[string]any) (any, error) {
 
 func apply(params map[string]any) (any, error) {
 	logger := params["logger"].(*public.Logger)
-
+	
 	logger.Info("=============申请证书=============")
 	certificate, err := certApply.Apply(params, logger)
 	if err != nil {
@@ -67,28 +68,57 @@ func deploy(params map[string]any) (any, error) {
 func upload(params map[string]any) (any, error) {
 	logger := params["logger"].(*public.Logger)
 	logger.Info("=============上传证书=============")
-
-	keyStr, ok := params["key"].(string)
-	if !ok {
-		logger.Error("上传的密钥有误")
-		logger.Info("=============上传失败=============")
-		return nil, errors.New("上传的密钥有误")
+	// 判断证书id走本地还是走旧上传，应在之后的迭代中移除旧代码
+	if params["cert_id"] == nil {
+		keyStr, ok := params["key"].(string)
+		if !ok {
+			logger.Error("上传的密钥有误")
+			logger.Info("=============上传失败=============")
+			return nil, errors.New("上传的密钥有误")
+		}
+		certStr, ok := params["cert"].(string)
+		if !ok {
+			logger.Error("上传的证书有误")
+			logger.Info("=============上传失败=============")
+			return nil, errors.New("上传的证书有误")
+		}
+		_, err := cert.UploadCert(keyStr, certStr)
+		if err != nil {
+			logger.Error(err.Error())
+			logger.Info("=============上传失败=============")
+			return nil, err
+		}
+		logger.Info("=============上传成功=============")
+		
+		return params, nil
+	} else {
+		certId := ""
+		switch v := params["cert_id"].(type) {
+		case float64:
+			certId = strconv.Itoa(int(v))
+		case string:
+			certId = v
+		default:
+			logger.Info("=============上传证书获取失败=============")
+			return nil, errors.New("证书 ID 类型错误")
+		}
+		result := map[string]any{}
+		certObj, err := cert.GetCert(certId)
+		if err != nil {
+			logger.Error(err.Error())
+			logger.Info("=============上传证书获取失败=============")
+			return nil, err
+		}
+		if certObj == nil {
+			logger.Error("证书不存在")
+			logger.Info("=============上传证书获取失败=============")
+			return nil, errors.New("证书不存在")
+		}
+		logger.Debug(fmt.Sprintf("证书 ID: %s", certId))
+		result["cert"] = certObj["cert"]
+		result["key"] = certObj["key"]
+		return result, nil
 	}
-	certStr, ok := params["cert"].(string)
-	if !ok {
-		logger.Error("上传的证书有误")
-		logger.Info("=============上传失败=============")
-		return nil, errors.New("上传的证书有误")
-	}
-	err := cert.UploadCert(keyStr, certStr)
-	if err != nil {
-		logger.Error(err.Error())
-		logger.Info("=============上传失败=============")
-		return nil, err
-	}
-	logger.Info("=============上传成功=============")
-
-	return params, nil
 }
 
 func notify(params map[string]any) (any, error) {

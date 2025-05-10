@@ -85,6 +85,10 @@ func main() {
 		if secure[0] != '/' {
 			secure = "/" + secure
 		}
+		if secure == "/login" {
+			fmt.Println("安全入口不能是/login")
+			return
+		}
 		err := public.UpdateSetting("secure", secure)
 		if err != nil {
 			fmt.Println("Error updating setting:", err)
