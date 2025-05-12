@@ -130,7 +130,7 @@ allinssl 17: 卸载ALLinSSL 🗑️
 ## 📜 许可证
 本项目采用 [AGPL-3.0 license](./LICENSE) 开源协议
 
-## 🌟Star History
+## 🌟Star 历史
 
 [![Star History Chart](https://api.star-history.com/svg?repos=allinssl/allinssl&type=Date)](https://www.star-history.com/#allinssl/allinssl&Date)
 
